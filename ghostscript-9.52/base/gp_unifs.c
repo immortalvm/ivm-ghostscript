@@ -149,10 +149,14 @@ gp_open_scratch_file_impl(const gs_memory_t *mem,
 FILE *
 gp_fopen_impl(gs_memory_t *mem, const char *fname, const char *mode)
 {
+#ifdef GS_NO_FILESYSTEM
+    return NULL;
+#else
 #if defined(HAVE_FILE64)
     return fopen64(fname, mode);
 #else
     return fopen(fname, mode);
+#endif
 #endif
 }
 
@@ -612,7 +616,7 @@ gp_enumerate_files_close_impl(gs_memory_t * mem, file_enum * pfen)
 gs_offset_t gp_ftell_impl(FILE *strm)
 {
 #if defined(HAVE_FILE64)
-    return ftello64(strm);
+    return 0;
 #else
     return ftello(strm);
 #endif
@@ -621,7 +625,7 @@ gs_offset_t gp_ftell_impl(FILE *strm)
 int gp_fseek_impl(FILE *strm, gs_offset_t offset, int origin)
 {
 #if defined(HAVE_FILE64)
-    return fseeko64(strm, offset, origin);
+    return 0;
 #else
     off_t offset1 = (off_t)offset;
 

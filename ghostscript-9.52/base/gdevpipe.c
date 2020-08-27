@@ -29,7 +29,9 @@
 static int
 do_pclose(FILE *file)
 {
-#ifndef GS_NO_FILESYSTEM
+#ifdef GS_NO_FILESYSTEM
+  return 0;
+#else
     return pclose(file);
 #endif
 }
@@ -46,7 +48,7 @@ fs_file_open_pipe(const gs_memory_t *mem, void *secret, const char *fname, char 
      * The OSF/1 1.3 library doesn't include const in the
      * prototype for popen, so we have to break const here.
      */
-    if (gp_file_FILE_set(*file, popen((char *)fname, (char *)mode), do_pclose)) {
+    if (gp_file_FILE_set(*file, 0, do_pclose)) {
         *file = NULL;
         return_error(gs_fopen_errno_to_code(errno));
     }

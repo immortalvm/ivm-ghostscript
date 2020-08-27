@@ -33,6 +33,7 @@
  * Directory entries may be defined in quite a number of different
  * header files.  The following switches are defined in gconfig_.h.
  */
+#ifndef GS_NO_FILESYSTEM
 #if  defined(HAVE_DIRENT_H) && HAVE_DIRENT_H == 1
 #  include <dirent.h>
 typedef struct dirent dir_entry;
@@ -50,5 +51,5 @@ typedef struct dirent dir_entry;
 typedef struct direct dir_entry;
 
 #endif /* sys/ndir or ndir or sys/dir */
-
+#endif /* GS_NO_FILESYSTEM */
 #endif /* dirent__INCLUDED */
