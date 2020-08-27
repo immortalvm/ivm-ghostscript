@@ -92,7 +92,6 @@ gs/jbig2dec/libtool
 config.log
 config.mak
 config.status
-install-sh
 tiff
 tiff-config
 
