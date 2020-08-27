@@ -232,12 +232,8 @@ currentdict /num-chars-dict .undef
   1 index cvlit                  % file <<>> file
   count 2 sub                    % file <<>> file cnt
   3 1 roll mark                  % file cnt <<>> file [
-  /PDFScanRules .getuserparam //null eq {
     //PDFScanRules_true { setuserparams } 0 get % force PDF scanning mode
     mark 7 4 roll
-  } {
-    mark 5 2 roll                % file [ [ cnt <<>> file
-  } ifelse
   {	% Stack: ..operands.. count opdict file
     { token } stopped {
       dup type /filetype eq { pop } if
@@ -269,9 +265,7 @@ currentdict /num-chars-dict .undef
   { loop } 0 get 2 packedarray cvx      % file [ { {cnt <<>> file ... } loop }
   PDFSTOPONERROR { {exec //false} } { {stopped} } ifelse
   aload pop                             % file [ { {cnt <<>> file ... } loop } stopped
-  /PDFScanRules .getuserparam //null eq {
     //PDFScanRules_null { setuserparams } 0 get % reset PDF scannig mode if it was off
-  } if
   /PDFsource PDFsource                  % file [ { {cnt <<>> file ... } loop } stopped /PDFsource PDFsource
   { store {
       /StreamRunAborted //true store
