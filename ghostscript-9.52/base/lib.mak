@@ -3338,12 +3338,12 @@ $(GLD)romfs0.dev :  $(LIB_MAK) $(ECHOGS_XE) $(LIB_MAK) $(MAKEDIRS)
 	$(SETMOD) $(GLD)romfs0
 # psi
 $(GLGEN)gsromfs1_.c : $(MKROMFS_XE) $(PS_ROMFS_DEPS) $(LIB_MAK) $(MAKEDIRS)
-	$(EXP)$(MKROMFS_XE) -o $(GLGEN)gsromfs1_.c \
-	$(MKROMFS_FLAGS) -X .svn -X CVS -P $(GLSRCDIR)$(D)..$(D) iccprofiles$(D)* \
+	/tmp/mkromfs -o $(GLGEN)gsromfs1_.c \
+	$(MKROMFS_FLAGS) -X .svn -X CVS -P $(GLSRCDIR)$(D)..$(D) iccprofiles$(D)* data$(D)* \
 	$(PS_ROMFS_ARGS) $(PS_FONT_ROMFS_ARGS) $(GL_ROMFS_ARGS)
 
 $(GLGEN)gsromfs1_1.c : $(MKROMFS_XE) $(PS_ROMFS_DEPS) $(LIB_MAK) $(MAKEDIRS)
-	$(EXP)$(MKROMFS_XE) -o $(GLGEN)gsromfs1_1.c \
+	/tmp/mkromfs -o $(GLGEN)gsromfs1_1.c \
 	$(MKROMFS_FLAGS) -X .svn -X CVS -P $(GLSRCDIR)$(D)..$(D) iccprofiles$(D)* \
 	$(UFST_ROMFS_ARGS) $(PS_ROMFS_ARGS) $(GL_ROMFS_ARGS)
 
