@@ -146,12 +146,21 @@ typedef struct {
 
 } FILEMEM;
 
+#define READ_HEADER_ELEMENT(to, from, length, name)     \
+  do {                                                  \
+    to = &(name);                                       \
+    memmove(to, from, (length));                        \
+    from += (length);                                   \
+  } while (0);
+
 static
 cmsUInt32Number MemoryRead(cmsContext ContextID, struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count)
 {
     FILEMEM* ResData = (FILEMEM*) iohandler ->stream;
     cmsUInt8Number* Ptr;
     cmsUInt32Number len = size * count;
+    cmsICCHeader Header;
+    void *temp;
 
     if (ResData -> Pointer + len > ResData -> Size){
 
@@ -162,7 +171,34 @@ cmsUInt32Number MemoryRead(cmsContext ContextID, struct _cms_io_handler* iohandl
 
     Ptr  = ResData -> Block;
     Ptr += ResData -> Pointer;
-    memmove(Buffer, Ptr, len);
+
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.size);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.cmmId);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.version);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsProfileClassSignature), Header.deviceClass);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsColorSpaceSignature),   Header.colorSpace);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsColorSpaceSignature),   Header.pcs);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.year);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.month);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.day);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.hours);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.minutes);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.seconds);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.magic);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsPlatformSignature),     Header.platform);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.flags);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.manufacturer);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.model);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt64Number),          Header.attributes);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.renderingIntent);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsS15Fixed16Number),      Header.illuminant.X);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsS15Fixed16Number),      Header.illuminant.Y);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsS15Fixed16Number),      Header.illuminant.Z);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.creator);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsProfileID),             Header.profileID);
+    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsInt8Number) * 28,       Header.reserved);
+    memmove(Buffer, &Header, len);
+
     ResData -> Pointer += len;
 
     return count;
