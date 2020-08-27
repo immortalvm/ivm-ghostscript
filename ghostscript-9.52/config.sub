@@ -2,7 +2,7 @@
 # Configuration validation subroutine script.
 #   Copyright 1992-2018 Free Software Foundation, Inc.
 
-timestamp='2018-02-22'
+timestamp='2020-06-29'
 
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by
@@ -359,6 +359,9 @@ case $basic_machine in
 	# (2) the word "unknown" tends to confuse beginning users.
 	i*86 | x86_64)
 	  basic_machine=$basic_machine-pc
+	  ;;
+        ivm64)
+	  basic_machine=$basic_machine-unknown
 	  ;;
 	# Object if more than one company name word.
 	*-*-*)
