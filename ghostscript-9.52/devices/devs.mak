@@ -1320,6 +1320,16 @@ $(DD)miff24.dev : $(miff_) $(GLD)page.dev $(GDEV) $(DEVS_MAK) $(MAKEDIRS)
 $(DEVOBJ)gdevmiff.$(OBJ) : $(DEVSRC)gdevmiff.c $(PDEVH) $(DEVS_MAK) $(MAKEDIRS)
 	$(DEVCC) $(DEVO_)gdevmiff.$(OBJ) $(C_) $(DEVSRC)gdevmiff.c
 
+### ------------------------- IVM64 device ----------------------------- ###
+
+ivm64_=$(DEVOBJ)gdevivm64.$(OBJ)
+
+$(DD)ivm64.dev : $(ivm64_) $(GLD)page.dev $(GDEV) $(DEVS_MAK) $(MAKEDIRS)
+	$(SETPDEV) $(DD)ivm64 $(ivm64_)
+
+$(DEVOBJ)gdevivm64.$(OBJ) : $(DEVSRC)gdevivm64.c $(PDEVH) $(DEVS_MAK) $(MAKEDIRS)
+	$(DEVCC) $(DEVO_)gdevivm64.$(OBJ) $(C_) $(DEVSRC)gdevivm64.c
+
 ### ------------------------- PCX file formats ------------------------- ###
 
 pcx_=$(DEVOBJ)gdevpcx.$(OBJ) $(DEVOBJ)gdevpccm.$(OBJ)
