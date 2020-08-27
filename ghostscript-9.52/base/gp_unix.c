@@ -152,7 +152,7 @@ gp_get_realtime(long *pdt)
 #if gettimeofday_no_timezone    /* older versions of SVR4 */
     {
         if (gettimeofday(&tp) == -1) {
-            lprintf("Ghostscript: gettimeofday failed!\n");
+            /* lprintf("Ghostscript: gettimeofday failed!\n"); */
             tp.tv_sec = tp.tv_usec = 0;
         }
     }
@@ -161,7 +161,7 @@ gp_get_realtime(long *pdt)
         struct timezone tzp;
 
         if (gettimeofday(&tp, &tzp) == -1) {
-            lprintf("Ghostscript: gettimeofday failed!\n");
+            /* lprintf("Ghostscript: gettimeofday failed!\n"); */
             tp.tv_sec = tp.tv_usec = 0;
         }
     }
