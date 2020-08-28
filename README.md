@@ -9,6 +9,7 @@ Note that below, `ivm` refers to the standard implementation of ivm64 and `vm` t
 ## Copy PDF input document
 Since GS can't read the PDF document from standard input, we need to put it into romfs, which is embedded in the executable.
 
+    cd ghostscript-9.52
     cp -i <myPDFdoc>.pdf Resource/Init/Input.pdf
 
 ## Build Ghostscript for ivm64
