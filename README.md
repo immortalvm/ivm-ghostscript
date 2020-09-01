@@ -18,7 +18,7 @@ Since GS can't read the PDF document from standard input, we need to put it into
     ivm as --noopt bin/gs
 
 ## Generate command line arguments file
-    echo "bin/gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r180x180 -dNOPAUSE -dBATCH -dSAFER -sOutputFile=- Input.pdf" | tr '[:space:]' '\000' > args
+    echo "bin/gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 -dNOPAUSE -dBATCH -dSAFER -sOutputFile=- Input.pdf" | tr '[:space:]' '\000' > args
 
 ## Run Ghostscript:
     time vm -o /tmp -a args -m 100000000 bin/gs.b
