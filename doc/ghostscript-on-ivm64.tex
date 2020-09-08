@@ -124,6 +124,9 @@ This modification is shown in Appendix~\ref{app:add-ivm64-device}.
 \section{Building Ghostscript}
 \label{sec:building-ghostview}
 
+To build Ghostscript the projects \code{ivm-compiler} and \code{ivm-implementations} must be installed.
+We assume that \code{ivm}, the standard implementation of ivm64, is in a directory in PATH.
+
 The first step in building Ghostscript is to copy the PDF input file to \code{Resource/Init/Input.pdf}, so that it may be embedded in the executable by the build system.
 The next step is to configure and build it through the following steps:
 \begin{enumerate}
@@ -134,6 +137,9 @@ The next step is to configure and build it through the following steps:
 
 \section{Running Ghostscript}
 \label{sec:running-ghostview}
+
+To run Ghostscript the project \code{ivm-implementations} must be installed.
+We assume that \code{ivm}, the C implementation of ivm64, is in a directory in PATH.
 
 \subsection{Command Line Arguments}
 
