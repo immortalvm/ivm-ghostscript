@@ -1,0 +1,564 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[includeheadfoot,margin=2cm]{geometry}
+\usepackage{times}
+\usepackage{booktabs}
+\usepackage[small]{titlesec}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{mathptmx}
+\usepackage{tikz}
+\usepackage{xifthen}
+\usepackage{fancyvrb}
+\frenchspacing
+\setlist{nosep}
+
+\renewcommand{\ttdefault}{cmtt}
+\newcommand{\code}[1]{\texttt{#1}}
+\newenvironment{codeblock}{\begin{trivlist}\ttfamily
+  \item }{\end{trivlist}}
+\DefineVerbatimEnvironment{Diff}{Verbatim}{formatcom=\footnotesize}
+
+\author{Thor Kristoffersen}
+%\date{\today}
+\date{September 23, 2020}
+\title{Ghostscript on ivm64\\
+  %
+  \vspace{1ex}
+  \large VirtuMa Solution 3.3 Part b}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+\label{sec:introduction}
+
+In order to be able to render stored PDF files, the virtual machine needs the ability to render PDF files. To achieve this we adapted the Ghostcript open source interpreter for the Postscript and PDF languages.
+
+With some modifications, Ghostscript can be run on the ivm64 machine architecture, with Newlib as the C library.
+The challenges are caused by limitations of both the ivm64 architecture and Newlib.
+
+\subsection{ivm64 Limitations}
+
+The ivm64 architecture supports the following devices:
+\begin{itemize}
+\item Image input
+\item Image output
+\item Audio output
+\item Text output
+\end{itemize}
+Notably there are no storage devices beyond the memory, and there are also no text input devices.
+
+\subsection{Newlib Limitations}
+
+Newlib is a C library implementaion intended for use on embedded systems, so it lacks some of the functionality of full C library implementations.
+The most important limitation is that it does not support a filesystem, although it would be possible to integrate one.
+
+\section{Modifying Ghostscript}
+\label{sec:modifying-ghostview}
+
+Ghostscript is intended to be built on fairly standard machine architectures and C library implementations, so in order to run it on a ivm64/Newlib system, the codebase needs some modification.
+The core of Ghostscript consists of a PostScript language interpreter implemented in C and a set of initialization files implemented in PostScript.
+The C code also depends on several external support libraries that are contained in the source tree, including the following:
+\begin{itemize}
+\item cups
+\item freetype
+\item ijs
+\item jbig2dec
+\item lcms2mt
+\item libpng
+\item openjpeg
+\item zlib
+\end{itemize}
+Some of these can be disabled in the build configuration.
+
+\subsection{Adding the ivm64 Architecture}
+
+A basic modification is to modify the build system to handle ivm64 as a target architecture.
+This is shown in Appendix~\ref{app:add-to-config}.
+
+\subsection{Eliminating Filesystem Dependencies}
+
+Ghostscript needs a filesystem for several purposes, including for reading various types of configuration and initialization files, and also for temporary work files.
+One way to solve this would be to extend Newlib with an in-memory filesystem.
+However, Ghostscript actually has an in-memory filesystem called romfs, which can be used to embed initialization files in the executable image.
+
+To completely eliminate the dependency on the C library fileystem, two things must be done.
+The first is to disable the code that calls the file-oriented library functions, and the second is to make sure that the internal memory limits are sufficiently high that the code will not need to use temporary work files.
+
+A conditional define, \texttt{GS\_NO\_FILESYSTEM}, can be used to do disable the library function, but unfortunately this is not consistently applied in the code, so some modification is needed.
+The required modifications are shown in Appendix~\ref{app:no-filesystem}.
+
+The internal memory limits can be raised by modifying a set of constants, as shown in Appendix~\ref{app:quadruple-memory-limits}.
+With this modification, resolutions up to 360 ppi can be supported without the need to use external work files.
+
+\subsection{Reading the Input File from Romfs}
+
+It would be possible for Ghostscript to read the input file as a parameter.
+This would require modification of Newlib, however, because the current version uses the parameters to convey command line parameters the executable, and Ghostscript expects the input either as standard input or as a file.
+Since the ivm64 architecture does not have a standard input device, this is not an option.
+The remaining option is to have the program read the file from romfs, the in-memory filesystem discussed in the previous section.
+To do this, the configuration system must be modified to add the input file to the set of files included in romfs.
+This modification is shown in Appendix~\ref{app:add-fixed-input-file}.
+
+\subsection{Suppressing Warnings}
+
+The Ghostscript code calls \code{gettimeofday}, but the Newlib version of this function always returns zero, causing several warnings to be printed.
+The modification shown in Appendix~\ref{app:suppress-gettimeofday-warnings} suppresses these warnings.
+
+\subsection{Fixing Bug Caused by Incorrect File Parsing}
+
+Ghostscript uses the \code{lcm2ms} library for color management.
+During the initialization phase this library reads an ICC profile from a file by transferring the file header to a C structure and accessing each variable in that structure.
+This mechanism is fragile, because it makes assumptions on the alignment of the variables in the structure that do not necessarily hold, and when it is run on the ivm64 architecture, the code fails and causes the Postscript interpreter to stop.
+The modification in Appendix~\ref{app:fix-icc-profile-bug} remedies this by using a more robust mechanism for reading the file header.
+
+\subsection{Working Around Unknown Bug in Parameter Access}
+
+When the input file is read, the Postscript code calls the operator \code{getuserparam} twice, both times with the argument \code{PDFScanRules}.
+For some uknown reason this call returns an error, causing the Postscript interpreter to stop.
+The solution turned out to be to simply disable this call and behave as if it always returned \code{true}.
+This modification is shown in Appendix~\ref{app:fix-getuserparam-crash}.
+
+\subsection{Adding a New Device Driver}
+
+Ghostscript supports adding new output device drivers, and the ivm64 graphics output device was added as the device \code{ivm64}.
+This modification is shown in Appendix~\ref{app:add-ivm64-device}.
+
+\section{Building Ghostscript}
+\label{sec:building-ghostview}
+
+To build Ghostscript the projects \code{ivm-compiler} and \code{ivm-implementations} must be installed.
+We assume that \code{ivm}, the standard implementation of ivm64, is in a directory in PATH.
+
+The first step in building Ghostscript is to copy the PDF input file to \code{Resource/Init/Input.pdf}, so that it may be embedded in the executable by the build system.
+The next step is to configure and build it through the following steps:
+\begin{enumerate}
+\item \code{CC=ivm64-gcc CFLAGS="-DGS\_NO\_FILESYSTEM -DCMS\_NO\_PTHREADS" ./configure --host=ivm64 --disable-threading --disable-contrib --disable-fontconfig --disable-dbus --disable-cups --with-drivers=ivm64}
+\item \code{make}
+\item \code{ivm as --noopt bin/gs}
+\end{enumerate}
+
+\section{Running Ghostscript}
+\label{sec:running-ghostview}
+
+To run Ghostscript the project \code{ivm-implementations} must be installed.
+We assume that \code{ivm}, the C implementation of ivm64, is in a directory in PATH.
+
+\subsection{Command Line Arguments}
+
+The operation of Ghostscript is controlled via command line arguments.
+The following is a typical example:
+\begin{codeblock}
+bin/gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 -dNOPAUSE -dBATCH -sOutputFile=- Input.pdf
+\end{codeblock}
+The meaning of each of the arguments is as follows:
+\begin{itemize}
+\item \code{-sDEVICE=ivm64}:~ Output the images via the ivm64 graphics output device.
+\item \code{-dGraphicsAlphaBits=4}:~ Use 4 bits of resolution for graphics antialiasing.
+\item \code{-dTextAlphaBits=4}:~ Use 4 bits of resolution for text antialiasing.
+\item \code{-r300x300}:~ Use a resolution of 300 ppi on both the X and Y axes.
+\item \code{-dNOPAUSE}:~ Disable the prompt and the pause at the end of each page.
+\item \code{-dBATCH}:~ Exit after processing all files named on the command line.
+\item \code{-sOutputFile=-}:~ Print any text output to the ivm64 text output device.
+\item \code{Input.pdf}:~ The name of the input file that was embedded in the executable image.
+\end{itemize}
+
+\subsection{Command Line Encoding}
+
+To run Ghostscript on ivm64, it is necessary to create a file containing this command line as a sequence of null-terminated strings.
+The command line in the example above can be encoded using the \code{tr} utility as follows:
+\begin{codeblock}
+echo "bin/gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 -dNOPAUSE -dSAFER -sOutputFile=- Input.pdf" | tr '[:space:]' '\textbackslash 000' > args
+\end{codeblock}
+
+\subsection{Running the Executable}
+
+When the command line has been stored in \code{args}, the executable can be called as follows:
+\begin{codeblock}
+  vm -o /tmp -a args -m 100000000 bin/gs.b
+\end{codeblock}
+The output images will appear as a set of \code{XXXXXXXX.png} files in the \code{/tmp} directory.
+
+\appendix
+
+\section{Modifications to the Code Base}
+\label{app:modifications-code-base}
+
+This appendix contains all the modifications needed to get Ghostscript to work on the ivm64 architecture.
+
+\subsection{Add the ivm64 Architecture to the Configuration System}
+\label{app:add-to-config}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/config.sub b/ghostscript-9.52/config.sub
+--- a/ghostscript-9.52/config.sub       2020-09-04 14:53:19.137830949 +0200
++++ b/ghostscript-9.52/config.sub       2020-09-01 17:12:04.792356225 +0200
+@@ -2,7 +2,7 @@
+ # Configuration validation subroutine script.
+ #   Copyright 1992-2018 Free Software Foundation, Inc.
+ 
+-timestamp='2018-02-22'
++timestamp='2020-06-29'
+ 
+ # This file is free software; you can redistribute it and/or modify it
+ # under the terms of the GNU General Public License as published by
+@@ -360,6 +360,9 @@
+        i*86 | x86_64)
+          basic_machine=$basic_machine-pc
+          ;;
++        ivm64)
++         basic_machine=$basic_machine-unknown
++         ;;
+        # Object if more than one company name word.
+        *-*-*)
+                echo Invalid configuration \`"$1"\': machine \`"$basic_machine"\' not recognized 1>&2
+\end{Diff}
+
+\subsection{Make the Code Work Without a Filesystem}
+\label{app:no-filesystem}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/base/dirent_.h b/ghostscript-9.52/base/dirent_.h
+--- a/ghostscript-9.52/base/dirent_.h   2020-09-04 14:53:46.197859237 +0200
++++ b/ghostscript-9.52/base/dirent_.h   2020-09-01 17:12:04.732355914 +0200
+@@ -33,6 +33,7 @@
+  * Directory entries may be defined in quite a number of different
+  * header files.  The following switches are defined in gconfig_.h.
+  */
++#ifndef GS_NO_FILESYSTEM
+ #if  defined(HAVE_DIRENT_H) && HAVE_DIRENT_H == 1
+ #  include <dirent.h>
+ typedef struct dirent dir_entry;
+@@ -50,5 +51,5 @@
+ typedef struct direct dir_entry;
+ 
+ #endif /* sys/ndir or ndir or sys/dir */
+-
++#endif /* GS_NO_FILESYSTEM */
+ #endif /* dirent__INCLUDED */
+diff -urN a/ghostscript-9.52/base/gdevpipe.c b/ghostscript-9.52/base/gdevpipe.c
+--- a/ghostscript-9.52/base/gdevpipe.c  2020-09-04 14:53:46.197859237 +0200
++++ b/ghostscript-9.52/base/gdevpipe.c  2020-09-01 17:12:04.740355956 +0200
+@@ -29,7 +29,9 @@
+ static int
+ do_pclose(FILE *file)
+ {
+-#ifndef GS_NO_FILESYSTEM
++#ifdef GS_NO_FILESYSTEM
++  return 0;
++#else
+     return pclose(file);
+ #endif
+ }
+@@ -46,7 +48,7 @@
+      * The OSF/1 1.3 library doesn't include const in the
+      * prototype for popen, so we have to break const here.
+      */
+-    if (gp_file_FILE_set(*file, popen((char *)fname, (char *)mode), do_pclose)) {
++    if (gp_file_FILE_set(*file, 0, do_pclose)) {
+         *file = NULL;
+         return_error(gs_fopen_errno_to_code(errno));
+     }
+diff -urN a/ghostscript-9.52/base/gp_unifs.c b/ghostscript-9.52/base/gp_unifs.c
+--- a/ghostscript-9.52/base/gp_unifs.c  2020-09-04 14:53:46.197859237 +0200
++++ b/ghostscript-9.52/base/gp_unifs.c  2020-09-01 17:12:04.744355976 +0200
+@@ -149,11 +149,15 @@
+ FILE *
+ gp_fopen_impl(gs_memory_t *mem, const char *fname, const char *mode)
+ {
++#ifdef GS_NO_FILESYSTEM
++    return NULL;
++#else
+ #if defined(HAVE_FILE64)
+     return fopen64(fname, mode);
+ #else
+     return fopen(fname, mode);
+ #endif
++#endif
+ }
+ 
+ int gp_stat_impl(const gs_memory_t *mem, const char *path, struct stat *buf)
+@@ -612,7 +616,7 @@
+ gs_offset_t gp_ftell_impl(FILE *strm)
+ {
+ #if defined(HAVE_FILE64)
+-    return ftello64(strm);
++    return 0;
+ #else
+     return ftello(strm);
+ #endif
+@@ -621,7 +625,7 @@
+ int gp_fseek_impl(FILE *strm, gs_offset_t offset, int origin)
+ {
+ #if defined(HAVE_FILE64)
+-    return fseeko64(strm, offset, origin);
++    return 0;
+ #else
+     off_t offset1 = (off_t)offset;
+ 
+\end{Diff}
+
+\subsection{Quadruple Memory Limits}
+\label{app:quadruple-memory-limits}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/base/gxdevice.h b/ghostscript-9.52/base/gxdevice.h
+--- a/ghostscript-9.52/base/gxdevice.h  2020-09-04 15:04:50.694845441 +0200
++++ b/ghostscript-9.52/base/gxdevice.h  2020-09-01 17:12:04.768356101 +0200
+@@ -69,9 +69,9 @@
+ #   define BUFFER_SPACE 25000
+ #   define MIN_MEMORY_LEFT 32000
+ #else
+-#   define MAX_BITMAP 10000000L /* reasonable on most modern hosts */
+-#   define BUFFER_SPACE 4000000L
+-#   define MIN_MEMORY_LEFT 500000L
++#   define MAX_BITMAP 40000000L /* reasonable on most modern hosts */
++#   define BUFFER_SPACE 16000000L
++#   define MIN_MEMORY_LEFT 2000000L
+ #endif
+ #define MIN_BUFFER_SPACE 10000 /* give up if less than this */
+ 
+\end{Diff}
+
+\subsection{Add Fixed Input File to Romfs}
+\label{app:add-fixed-input-file}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/psi/psromfs.mak b/ghostscript-9.52/psi/psromfs.mak
+--- a/ghostscript-9.52/psi/psromfs.mak  2020-09-04 14:54:48.689929590 +0200
++++ b/ghostscript-9.52/psi/psromfs.mak  2020-09-01 17:12:05.072357679 +0200
+@@ -26,7 +26,7 @@
+ MISC_INIT_FILES=FCOfontmap-PCLPS2 -C cidfmap \
+  FAPIcidfmap FAPIconfig FAPIfontmap Fontmap Fontmap.GS xlatmap \
+  gs_diskn.ps gs_dscp.ps gs_trap.ps \
+- -B gs_cet.ps
++ -B gs_cet.ps Input.pdf
+ 
+ # In the below list, the Font contents are _not_ compressed since it doesn't help.
+ PS_RESOURCE_LIST=SubstCID$(D)* CIDFSubst$(D)* CIDFont$(D)* -C $(PDF_RESOURCE_LIST) ColorSpace$(D)* Decoding$(D)* Encoding$(D)* -c -C IdiomSet$(D)* ProcSet$(D)* -P $(PSRESDIR)$(D)Init$(D) -d Resource/Init/ -B $(MISC_INIT_FILES)
+\end{Diff}
+
+\subsection{Suppress Warnings About gettimeofday Not Working}
+\label{app:suppress-gettimeofday-warnings}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/base/gp_unix.c b/ghostscript-9.52/base/gp_unix.c
+--- a/ghostscript-9.52/base/gp_unix.c   2020-09-04 14:55:15.541961816 +0200
++++ b/ghostscript-9.52/base/gp_unix.c   2020-09-01 17:12:04.744355976 +0200
+@@ -152,7 +152,7 @@
+ #if gettimeofday_no_timezone    /* older versions of SVR4 */
+     {
+         if (gettimeofday(&tp) == -1) {
+-            lprintf("Ghostscript: gettimeofday failed!\n");
++            /* lprintf("Ghostscript: gettimeofday failed!\n"); */
+             tp.tv_sec = tp.tv_usec = 0;
+         }
+     }
+@@ -161,7 +161,7 @@
+         struct timezone tzp;
+ 
+         if (gettimeofday(&tp, &tzp) == -1) {
+-            lprintf("Ghostscript: gettimeofday failed!\n");
++            /* lprintf("Ghostscript: gettimeofday failed!\n"); */
+             tp.tv_sec = tp.tv_usec = 0;
+         }
+     }
+\end{Diff}
+
+\subsection{Fix ICC Profile Header Parsing Bug}
+\label{app:fix-icc-profile-bug}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/lcms2mt/src/cmsio0.c b/ghostscript-9.52/lcms2mt/src/cmsio0.c
+--- a/ghostscript-9.52/lcms2mt/src/cmsio0.c     2020-09-04 14:55:37.317988769 +0200
++++ b/ghostscript-9.52/lcms2mt/src/cmsio0.c     2020-09-01 17:12:05.012357367 +0200
+@@ -146,12 +146,21 @@
+ 
+ } FILEMEM;
+ 
++#define READ_HEADER_ELEMENT(to, from, length, name)     \
++  do {                                                  \
++    to = &(name);                                       \
++    memmove(to, from, (length));                        \
++    from += (length);                                   \
++  } while (0);
++
+ static
+ cmsUInt32Number MemoryRead(cmsContext ContextID, struct _cms_io_handler* iohandler, void *Buffer, cmsUInt32Number size, cmsUInt32Number count)
+ {
+     FILEMEM* ResData = (FILEMEM*) iohandler ->stream;
+     cmsUInt8Number* Ptr;
+     cmsUInt32Number len = size * count;
++    cmsICCHeader Header;
++    void *temp;
+ 
+     if (ResData -> Pointer + len > ResData -> Size){
+ 
+@@ -162,7 +171,34 @@
+ 
+     Ptr  = ResData -> Block;
+     Ptr += ResData -> Pointer;
+-    memmove(Buffer, Ptr, len);
++
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.size);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.cmmId);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.version);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsProfileClassSignature), Header.deviceClass);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsColorSpaceSignature),   Header.colorSpace);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsColorSpaceSignature),   Header.pcs);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.year);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.month);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.day);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.hours);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.minutes);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt16Number),          Header.date.seconds);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.magic);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsPlatformSignature),     Header.platform);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.flags);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.manufacturer);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.model);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt64Number),          Header.attributes);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsUInt32Number),          Header.renderingIntent);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsS15Fixed16Number),      Header.illuminant.X);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsS15Fixed16Number),      Header.illuminant.Y);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsS15Fixed16Number),      Header.illuminant.Z);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsSignature),             Header.creator);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsProfileID),             Header.profileID);
++    READ_HEADER_ELEMENT(temp, Ptr, sizeof(cmsInt8Number) * 28,       Header.reserved);
++    memmove(Buffer, &Header, len);
++
+     ResData -> Pointer += len;
+ 
+     return count;
+\end{Diff}
+
+\subsection{Fix Crash Caused by Call to getuserparam}
+\label{app:fix-getuserparam-crash}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/Resource/Init/pdf_base.ps b/ghostscript-9.52/Resource/Init/pdf_base.ps
+--- a/ghostscript-9.52/Resource/Init/pdf_base.ps        2020-09-04 14:56:11.238032139 +0200
++++ b/ghostscript-9.52/Resource/Init/pdf_base.ps        2020-09-01 17:12:04.732355914 +0200
+@@ -232,12 +232,8 @@
+   1 index cvlit                  % file <<>> file
+   count 2 sub                    % file <<>> file cnt
+   3 1 roll mark                  % file cnt <<>> file [
+-  /PDFScanRules .getuserparam //null eq {
+     //PDFScanRules_true { setuserparams } 0 get % force PDF scanning mode
+     mark 7 4 roll
+-  } {
+-    mark 5 2 roll                % file [ [ cnt <<>> file
+-  } ifelse
+   {    % Stack: ..operands.. count opdict file
+     { token } stopped {
+       dup type /filetype eq { pop } if
+@@ -269,9 +265,7 @@
+   { loop } 0 get 2 packedarray cvx      % file [ { {cnt <<>> file ... } loop }
+   PDFSTOPONERROR { {exec //false} } { {stopped} } ifelse
+   aload pop                             % file [ { {cnt <<>> file ... } loop } stopped
+-  /PDFScanRules .getuserparam //null eq {
+     //PDFScanRules_null { setuserparams } 0 get % reset PDF scannig mode if it was off
+-  } if
+   /PDFsource PDFsource                  % file [ { {cnt <<>> file ... } loop } stopped /PDFsource PDFsource
+   { store {
+       /StreamRunAborted //true store
+\end{Diff}
+
+\subsection{Add Device for ivm64 Graphics Output}
+\label{app:add-ivm64-device}
+
+\begin{Diff}
+diff -urN a/ghostscript-9.52/devices/devs.mak b/ghostscript-9.52/devices/devs.mak
+--- a/ghostscript-9.52/devices/devs.mak 2020-09-04 15:01:54.826545735 +0200
++++ b/ghostscript-9.52/devices/devs.mak 2020-09-01 17:12:04.824356392 +0200
+@@ -1320,6 +1320,16 @@
+ $(DEVOBJ)gdevmiff.$(OBJ) : $(DEVSRC)gdevmiff.c $(PDEVH) $(DEVS_MAK) $(MAKEDIRS)
+        $(DEVCC) $(DEVO_)gdevmiff.$(OBJ) $(C_) $(DEVSRC)gdevmiff.c
+ 
++### ------------------------- IVM64 device ----------------------------- ###
++
++ivm64_=$(DEVOBJ)gdevivm64.$(OBJ)
++
++$(DD)ivm64.dev : $(ivm64_) $(GLD)page.dev $(GDEV) $(DEVS_MAK) $(MAKEDIRS)
++       $(SETPDEV) $(DD)ivm64 $(ivm64_)
++
++$(DEVOBJ)gdevivm64.$(OBJ) : $(DEVSRC)gdevivm64.c $(PDEVH) $(DEVS_MAK) $(MAKEDIRS)
++       $(DEVCC) $(DEVO_)gdevivm64.$(OBJ) $(C_) $(DEVSRC)gdevivm64.c
++
+ ### ------------------------- PCX file formats ------------------------- ###
+ 
+ pcx_=$(DEVOBJ)gdevpcx.$(OBJ) $(DEVOBJ)gdevpccm.$(OBJ)
+diff -urN a/ghostscript-9.52/devices/gdevivm64.c b/ghostscript-9.52/devices/gdevivm64.c
+--- a/ghostscript-9.52/devices/gdevivm64.c      1970-01-01 01:00:00.000000000 +0100
++++ b/ghostscript-9.52/devices/gdevivm64.c      2020-09-04 15:01:54.834545748 +0200
+@@ -0,0 +1,78 @@
++/* ivm64 graphical device output */
++#include "gdevprn.h"
++
++
++/* ivm64 device primitives */
++void ivm64_new_frame(long width, long height, long rate)
++{
++  asm volatile("new_frame* [(load8 %[w]) (load8 %[h]) (load8 %[r])]"
++               : : [w] "m" (width), [h] "m" (height), [r] "m" (rate));
++}
++
++void ivm64_set_pixel(long x, long y, long r, long g, long b) 
++{
++  asm volatile("set_pixel* [(load8 %[x]) (load8 %[y]) (load8 %[r]) (load8 %[g]) (load8 %[b])]"
++               : : [x] "m" (x), [y] "m" (y), [r] "m" (r), [g] "m" (g), [b] "m" (b));
++}
++
++/* ------ The device descriptor ------ */
++
++/*
++ * Default X and Y resolution.
++ */
++#define X_DPI 72
++#define Y_DPI 72
++
++static dev_proc_print_page(ivm64_print_page);
++
++static const gx_device_procs ivm64_procs =
++  prn_color_procs(gdev_prn_open, gdev_prn_bg_output_page, gdev_prn_close,
++                  gx_default_rgb_map_rgb_color, gx_default_rgb_map_color_rgb);
++const gx_device_printer gs_ivm64_device =
++  prn_device(ivm64_procs, "ivm64",
++             DEFAULT_WIDTH_10THS, DEFAULT_HEIGHT_10THS,
++             X_DPI, Y_DPI,
++             0, 0, 0, 0,               /* margins */
++             24, ivm64_print_page);
++
++static int
++ivm64_print_page(gx_device_printer * pdev, gp_file * file)
++{
++  int raster = gx_device_raster((gx_device *) pdev, true);
++  byte *line = gs_alloc_bytes(pdev->memory, raster, "miff line buffer");
++  int code = 0;                /* return code */
++
++  if (line == 0)               /* can't allocate line buffer */
++    return_error(gs_error_VMerror);
++
++  ivm64_new_frame(pdev->width, pdev->height, 0);
++  for (int y = 0; y < pdev->height; ++y) {
++    byte *row;
++
++    code = gdev_prn_get_bits(pdev, y, line, &row);
++    if (code < 0)
++      break;
++    for (int x = 0; x < pdev->width; x++) {
++      int i = 3 * x;
++      ivm64_set_pixel(x, y, row[i], row[i + 1], row[i + 2]);
++    }
++  }
++  gs_free_object(pdev->memory, line, "miff line buffer");
++
++  return code;
++}
+\end{Diff}
+
+\end{document}
