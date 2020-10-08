@@ -69,9 +69,9 @@
 #   define BUFFER_SPACE 25000
 #   define MIN_MEMORY_LEFT 32000
 #else
-#   define MAX_BITMAP 40000000L /* reasonable on most modern hosts */
-#   define BUFFER_SPACE 16000000L
-#   define MIN_MEMORY_LEFT 2000000L
+#   define MAX_BITMAP 80000000L
+#   define BUFFER_SPACE 32000000L
+#   define MIN_MEMORY_LEFT 4000000L
 #endif
 #define MIN_BUFFER_SPACE 10000	/* give up if less than this */
 
