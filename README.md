@@ -2,7 +2,7 @@
 This is Ghostscript 9.52, modified to run on ivm64.
 
 ## Prerequisites
-The projects ivm-compiler and ivm-implementations must be installed and working. For performance reasons it is necessary to use the C implementation of the ivm64 virtual machine to execute the binary.
+The project's ivm-compiler and ivm-implementations must be installed and working. For performance reasons it is necessary to use the C implementation of the ivm64 virtual machine to execute the binary.
 
 Note that below, `ivm` refers to the standard implementation of ivm64 and `vm` to the C implementation. For simplicity we assume here that both are in directories in PATH.
 

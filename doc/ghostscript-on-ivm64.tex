@@ -22,14 +22,21 @@
 \DefineVerbatimEnvironment{Diff}{Verbatim}{formatcom=\footnotesize}
 
 \author{Thor Kristoffersen}
-\date{\today}
-\title{Ghostscript on ivm64}
+%\date{\today}
+\date{September 23, 2020}
+\title{Ghostscript on ivm64\\
+  %
+  \vspace{1ex}
+  \large VirtuMa Solution 3.3 Part b}
+
 \begin{document}
 
 \maketitle
 
 \section{Introduction}
 \label{sec:introduction}
+
+In order to be able to render stored PDF files, the virtual machine needs the ability to render PDF files. To achieve this we adapted the Ghostcript open source interpreter for the Postscript and PDF languages.
 
 With some modifications, Ghostscript can be run on the ivm64 machine architecture, with Newlib as the C library.
 The challenges are caused by limitations of both the ivm64 architecture and Newlib.
@@ -124,6 +131,9 @@ This modification is shown in Appendix~\ref{app:add-ivm64-device}.
 \section{Building Ghostscript}
 \label{sec:building-ghostview}
 
+To build Ghostscript the projects \code{ivm-compiler} and \code{ivm-implementations} must be installed.
+We assume that \code{ivm}, the standard implementation of ivm64, is in a directory in PATH.
+
 The first step in building Ghostscript is to copy the PDF input file to \code{Resource/Init/Input.pdf}, so that it may be embedded in the executable by the build system.
 The next step is to configure and build it through the following steps:
 \begin{enumerate}
@@ -134,6 +144,9 @@ The next step is to configure and build it through the following steps:
 
 \section{Running Ghostscript}
 \label{sec:running-ghostview}
+
+To run Ghostscript the project \code{ivm-implementations} must be installed.
+We assume that \code{ivm}, the C implementation of ivm64, is in a directory in PATH.
 
 \subsection{Command Line Arguments}
 

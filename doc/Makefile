@@ -6,6 +6,7 @@ ghostscript-on-ivm64.pdf: ghostscript-on-ivm64.tex
 	pdflatex ghostscript-on-ivm64.tex
 	pdflatex ghostscript-on-ivm64.tex
 
+
 ghostscript-performance.pdf: ghostscript-performance.tex
 	pdflatex ghostscript-performance.tex
 	pdflatex ghostscript-performance.tex
