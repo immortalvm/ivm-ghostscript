@@ -1,7 +1,7 @@
 \documentclass[a4paper,11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
-\usepackage[includeheadfoot,margin=2cm]{geometry}
+\usepackage[includeheadfoot,vmargin=2cm,hmargin=2cm]{geometry}
 \usepackage{times}
 \usepackage{booktabs}
 \usepackage[small]{titlesec}
@@ -23,34 +23,50 @@
 
 \author{Thor Kristoffersen}
 \date{\today}
-\title{Performance of Ghostscript PDF Rendering on ivm64}
+\title{Ghostscript PDF Rendering Performance\\on the iVM Virtual Machine}
 \begin{document}
 
 \maketitle
 
-\noindent
+\section{Introduction}
+
 This is a report on the performance of the ivm64 port of Ghostscript for high-resolution rendering of PDF documents.
+
+PDF rendering is the prime use case for the iVM virtual machine in the VirtuMa project.
+The project objective is to be able to render one page in less than three minutes on current hardware.
 
 \section{Test Setup}
 \label{sec:test setup}
 
-The tests were performed on a virtual machine running on an Intel Core i7-8850H (2.60GHz).
+This section describes what was tested and how the testing was performed.
 
-The Ghostscript source code was compiled with ivm64-gcc version 1.0rc5-ar based on gcc 8.3.0, then assembled with the iVM assembler version 0.3, and then executed on an optimized C implementation of the iVM.
+\subsection{Test Documents}
+
+Three documents of different, typical characteristics were tested: a technical document, a government report, and a book.
 
 In each test case, Adobe Acrobat Pro DC version 2020.012.20048 was used to convert the original document to PDF/A format.
 
-The conversion of each PDF document was done by executing the Ghostscript executable with the following command-line, which renders the document at 300 ppi, with 16 levels of antialiasing for both text and graphics.
+\subsection{Test Platform}
+
+The tests were performed on a VirtualBox virtual machine running on an Intel Core i7-8850H (2.60GHz).
+
+The Ghostscript source code was compiled with ivm64-gcc version 1.0rc5-ar based on gcc 8.3.0, then assembled with the iVM assembler version 0.3, and then executed on an optimized C implementation of the iVM.
+
+\subsection{Test Execution}
+
+The rendering of each PDF document was done by executing the Ghostscript executable with the following command-line, which renders the document at 300 ppi, with 16 levels of antialiasing for both text and graphics.
 \begin{trivlist}\ttfamily
-\item gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 -dNOPAUSE \\ -dBATCH -dSAFER -sOutputFile=- Input.pdf
+\item gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 \\ -dNOPAUSE -dBATCH -dSAFER -sOutputFile=- Input.pdf
 \end{trivlist}
-
-
 Since the output from the virtual machine was rendered as a sequence of PNG files, it was possible to infer the rendering time for each page, allowing per-page statistical parameters to be calculated.
 
-\section{A 17-Page Technical Document}
+\section{Test Results}
 
-This test case is \emph{How to Build a Machine}, a 17-page technical document containing tables and mathematical formulas, but no graphics.
+This section reports the results of the tests.
+
+\subsection{A 17-Page Technical Document}
+
+This test case is the project deliverable \emph{How to Build a Machine}, a 17-page technical document containing tables and mathematical formulas, but no graphics.
 The test results are shown in Figure~\ref{tab:17-page-doc}.
 
 \begin{table}[htbp]
@@ -67,13 +83,13 @@ The test results are shown in Figure~\ref{tab:17-page-doc}.
     Document total & 537 \\
     \hline
   \end{tabular}
-  \caption{Test results for 17-page mathematical document}
+  \caption{Test results for a 17-page mathematical document}
   \label{tab:17-page-doc}
 \end{table}
 
-\section{A 96-Page Government Report with Diagrams}
+\subsection{A 96-Page Government Report with Diagrams}
 
-This test case is \emph{NOU 2019:11 Enklere merverdiavgift med én sats}, a 96-page government report, of which 16 pages contain diagrams and other graphics elements.
+This test case is \emph{NOU 2019:11 Enklere merverdiavgift med én sats} by the Norwegian government, a 96-page report, of which 16 pages contain diagrams and other graphics elements.
 The test results are shown in Figure~\ref{tab:96-page-doc}.
 
 \begin{table}[htbp]
@@ -82,20 +98,43 @@ The test results are shown in Figure~\ref{tab:96-page-doc}.
     \hline
     Parameter      & Time [s] \\
     \hline
-    Page mean      & 86  \\
-    Page median    & 83  \\
-    Page minimum   & 6   \\
+    Page mean      & 86   \\
+    Page median    & 83   \\
+    Page minimum   & 6    \\
     Page maximum   & 604  \\
     Page std.dev.  & 60   \\
     Document total & 8299 \\
     \hline
   \end{tabular}
-  \caption{Test results for 96-page government report}
+  \caption{Test results for a 96-page government report}
   \label{tab:96-page-doc}
+\end{table}
+
+\subsection{A 378-page Book with Illustrations}
+
+This test case is \emph{A Tale of Two Cities} by Charles Dickens, a 378-page e-book, of which 32 pages contain illustrations.
+The test results are shown in Figure~\ref{tab:378-page-doc}.
+
+\begin{table}[htbp]
+  \centering\small
+  \begin{tabular}{@{}lr@{}}
+    \hline
+    Parameter      & Time [s] \\
+    \hline
+    Page mean      & 58    \\
+    Page median    & 63    \\
+    Page minimum   & 7     \\
+    Page maximum   & 99    \\
+    Page std.dev.  & 18    \\
+    Document total & 21780 \\
+    \hline
+  \end{tabular}
+  \caption{Test results for a 378-page book}
+  \label{tab:378-page-doc}
 \end{table}
 
 \section{Conclusion}
 
-On modern hardware the average PDF rendering time per page is well below the project requirement of three minutes.
+On current hardware the mean PDF rendering time per page for typical document types at high resolution is well below the project requirement of three minutes.
 
 \end{document}
