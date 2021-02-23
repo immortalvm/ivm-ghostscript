@@ -1,4 +1,11 @@
-# ivm-ghostscript
+# Ghostscript for iVM
+
+In order to be able to render stored PDF files, the virtual machine needs the ability to render PDF files. To
+achieve this we adapted the Ghostcript open source interpreter for the Postscript and PDF languages.
+With some modifications, Ghostscript can be run on the ivm64 machine architecture, with Newlib as the C
+library.
+
+## Version of Ghostscript
 This is Ghostscript 9.52, modified to run on ivm64.
 
 ## Prerequisites
