@@ -13,19 +13,19 @@ The projects `ivm-compiler` and `ivm-implementations` must be installed and work
 
 Note that below, `ivm` refers to the standard implementation of ivm64 and `vm` to the C implementation. For simplicity we assume here that both are in directories in PATH.
 
-## Copy PDF input document
-Since GS can't read the PDF document from standard input, we need to put it into romfs, which is embedded in the executable.
+## Copy PDF input documents
+Since GS can't read the PDF documents from standard input, we need to put them into romfs, which is embedded in the executable.
 
     cd ghostscript-9.52
-    cp -i <myPDFdoc>.pdf Resource/Init/Input.pdf
+    cp -i DOC1.pdf DOC2.pdf DOC3.pdf Resource/Init
 
 ## Build Ghostscript for ivm64
     CC=ivm64-gcc CFLAGS="-DGS_NO_FILESYSTEM -DCMS_NO_PTHREADS" ./configure --host=ivm64 --disable-threading --disable-contrib --disable-fontconfig --disable-dbus --disable-cups --with-drivers=ivm64
     make
     ivm as --noopt bin/gs
 
-## Generate command line arguments file
-    echo "bin/gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 -dNOPAUSE -dBATCH -dSAFER -sOutputFile=- Input.pdf" | tr '[:space:]' '\000' > args
+## Generate command line arguments file for a given PDF document
+    echo "bin/gs -sDEVICE=ivm64 -dGraphicsAlphaBits=4 -dTextAlphaBits=4 -r300x300 -dNOPAUSE -dBATCH -dSAFER -sOutputFile=- DOC1.pdf" | tr '[:space:]' '\000' > args
 
 ## Run Ghostscript:
     time vm -o /tmp -a args -m 100000000 bin/gs.b
